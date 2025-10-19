@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marin Kitagawa</title>
+  <link rel="icon" type="image/jpeg" href="https://raw.githubusercontent.com/widget347/marinkitagawa_gallery/refs/heads/main/high%20res.jpg">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: white;
+      font-family: sans-serif;
+    }
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 4px;
+    }
+    .row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    img {
+      margin: 2px;
+      display: block;
+      height: auto;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <div id="gallery"></div>
+
+  <script>
+    const owner = 'widget347';
+    const repo = 'marinkitagawa_gallery';
+    const branch = 'main';
+
+    async function getImages() {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+      const data = await res.json();
+      const exts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+      return data.tree
+        .filter(f => f.type === 'blob' && exts.some(e => f.path.toLowerCase().endsWith(e)))
+        .map(f => `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${f.path}`);
+    }
+
+    async function loadImages() {
+      const urls = await getImages();
+      const gallery = document.getElementById('gallery');
+      const metas = await Promise.all(urls.map(url => new Promise(res => {
+        const img = new Image();
+        img.src = url;
+        img.onload = () => res({url, w: img.naturalWidth, h: img.naturalHeight, aspect: img.naturalWidth / img.naturalHeight});
+        img.onerror = () => res(null);
+      })));
+
+      const valid = metas.filter(Boolean);
+      renderRows(valid);
+    }
+
+    function renderRows(images) {
+      const gallery = document.getElementById('gallery');
+      gallery.innerHTML = '';
+
+      const targetRowHeight = 200;
+      const containerWidth = gallery.clientWidth || window.innerWidth;
+
+      let row = [];
+      let aspectSum = 0;
+
+      for (const img of images) {
+        row.push(img);
+        aspectSum += img.aspect;
+
+        const expectedHeight = containerWidth / aspectSum;
+
+        if (expectedHeight < targetRowHeight * 1.2) {
+          addRow(row, containerWidth, aspectSum);
+          row = [];
+          aspectSum = 0;
+        }
+      }
+
+      if (row.length > 0) addRow(row, containerWidth, aspectSum);
+    }
+
+    function addRow(rowImgs, containerWidth, totalAspect) {
+      const gallery = document.getElementById('gallery');
+      const rowEl = document.createElement('div');
+      rowEl.className = 'row';
+      const height = containerWidth / totalAspect;
+
+      for (const img of rowImgs) {
+        const el = document.createElement('img');
+        el.src = img.url;
+        el.height = height;
+        el.width = height * img.aspect;
+        el.loading = 'lazy';
+        rowEl.appendChild(el);
+      }
+
+      gallery.appendChild(rowEl);
+    }
+
+    window.addEventListener('resize', () => {
+      clearTimeout(window._resizeTimer);
+      window._resizeTimer = setTimeout(() => loadImages(), 300);
+    });
+
+    loadImages();
+  </script>
+</body>
+</html>
